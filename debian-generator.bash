@@ -17,7 +17,7 @@
 #
 #
 # Script to generate a Debian openVZ template.
-# v0.1.0 (still under test)
+# v0.1.1 (still under test)
 #
 # Currently supports custom locale, mirrors, timezone and Debian release.
 #
@@ -39,7 +39,7 @@ base_template="debian-7.5-i386-custom.tar.gz"
 # Check if "basic config" exists in current installation
 
 if [[ ! -f /etc/pve/openvz/ve-basic.conf-sample ]]; then
-	cat > /etc/locale <<EOF
+	cat > /etc/pve/openvz/ve-basic.conf-sample <<EOF
 #  Copyright (C) 2000-2006 SWsoft. All rights reserved.
 #
 #  This program is free software; you can redistribute it and/or modify
