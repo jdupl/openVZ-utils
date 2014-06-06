@@ -17,7 +17,7 @@
 #
 #
 # Script to generate a Debian openVZ template.
-# v0.0.0 declared not working again
+# v1.0.0
 #
 # Currently supports custom locale, mirrors, timezone and Debian release.
 #
@@ -34,7 +34,7 @@ temp_vm_id="1337"
 lang="en_CA"
 encoding="UTF-8"
 vz_path="/var/lib/vz"
-base_template="debian-7.5-i386-custom.tar.gz"
+base_template="debian-7.0-standard_7.0-2_i386.tar.gz"
 temp_ip="192.168.2.170"
 temp_dns="8.8.8.8"
 
@@ -95,7 +95,6 @@ QUOTATIME="0"
 
 # CPU fair sheduler parameter
 CPUUNITS="1000"
-
 EOF
 fi
 
@@ -109,12 +108,10 @@ vzctl set $temp_vm_id --nameserver $temp_dns --save
 # Start CT
 vzctl start $temp_vm_id
 
-sleep 5
-# Clear etc/locale
-> ${vz_path}/private/${temp_vm_id}/etc/locale
+sleep 1s
 
-# Generate new etc/locale file
-cat > ${vz_path}/private/${temp_vm_id}/etc/locale <<EOF
+# Generate new locale.gen file
+cat > ${vz_path}/private/${temp_vm_id}/etc/locale.gen <<EOF
 # This file lists locales that you wish to have built. You can find a list
 # of valid supported locales at /usr/share/i18n/SUPPORTED, and you can add
 # user defined locales to /usr/local/share/i18n/SUPPORTED. If you change
@@ -122,66 +119,46 @@ cat > ${vz_path}/private/${temp_vm_id}/etc/locale <<EOF
 ${lang}.${encoding} ${encoding}
 EOF
 
-# Remove old LANG and LC_CTYPE from /etc/environnement
-sed '/^LANG/d' ${vz_path}/private/${temp_vm_id}/etc/environnement
-sed '/^LC_CTYPE/d' ${vz_path}/private/${temp_vm_id}/etc/environnement
-
-# Clear default locale
-> ${vz_path}/private/${temp_vm_id}/etc/default/locale
-
-# Set current default locale
+# Set default locale
 cat > ${vz_path}/private/${temp_vm_id}/etc/default/locale <<EOF
-LANG=${lang}.${encoding}
+LANG="${lang}.${encoding}"
 EOF
 
-# Clear old sources.list
-> ${vz_path}/private/${temp_vm_id}/etc/sources.list
-
-# Generate new /etc/sources.list file
-cat > ${vz_path}/private/${temp_vm_id}/etc/sources.list <<EOF
+# Generate new /etc/apt/sources.list file
+cat > ${vz_path}/private/${temp_vm_id}/etc/apt/sources.list <<EOF
 deb ${mirror} ${debian_version} main contrib
 deb ${mirror} ${debian_version}-updates main contrib
 deb http://security.debian.org ${debian_version}/updates main contrib
 EOF
 
-#
-# Delete ssh keys and generate next boot
-#
-
-# Delete CT keys
-rm -f ${vz_path}/private/${temp_vm_id}/etc/ssh/ssh_host_*
-
-# Script to regenerate new keys at next boot (first boot of the template)
-cat  > ${vz_path}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
-ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N '' 
-ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
-rm -f \$0
-EOF
-
 # Generate new locale
 vzctl exec $temp_vm_id locale-gen
 
+vzctl stop $temp_vm_id
+sleep 1s
+vzctl start $temp_vm_id
+sleep 1s
+
 # Update vm with new sources.list
 vzctl exec $temp_vm_id apt-get update
-vzctl exec $temp_vm_id apt-get upgrade --assume-yes
-vzctl exec $temp_vm_id apt-get dist-upgrade --assume-yes
+vzctl exec $temp_vm_id apt-get upgrade -y
+vzctl exec $temp_vm_id apt-get dist-upgrade -y
 
 # Install some basic utilities
-vzctl exec $temp_vm_id apt-get install --assume-yes less htop 
+vzctl exec $temp_vm_id apt-get install -y less htop
+
 # Clean apt-get
 vzctl exec $temp_vm_id apt-get autoremove -y
 vzctl exec $temp_vm_id apt-get clean -y
 
 # Make script executable
 vzctl exec $temp_vm_id chmod a+x /etc/init.d/ssh_gen_host_keys
+
 # Enable init script
 vzctl exec $temp_vm_id insserv /etc/init.d/ssh_gen_host_keys
 
 # Change timezone
-vzctl exec $temp_vm_id ln -sf /usr/share/zoneinfo/$timezone /etc/timezone #TODO test this
-
-# Delete history
-vzctl exec $temp_vm_id history -c
+vzctl exec $temp_vm_id ln -sf /usr/share/zoneinfo/$timezone /etc/timezone
 
 # Delete CT's hostname file
 rm -f ${vz_path}/private/${temp_vm_id}/etc/hostname
@@ -189,11 +166,25 @@ rm -f ${vz_path}/private/${temp_vm_id}/etc/hostname
 # Reset CT's resolv.conf
 > ${vz_path}/private/${temp_vm_id}/etc/resolv.conf
 
+# Delete CT ssh keys
+rm -f ${vz_path}/private/${temp_vm_id}/etc/ssh/ssh_host_*
+
+# Script to regenerate new keys at first boot of the template
+cat  > ${vz_path}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
+ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N '' 
+ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
+rm -f \$0
+EOF
+
+# Delete history
+vzctl exec $temp_vm_id history -c
+
 # Stop the CT
 vzctl stop $temp_vm_id
 
 # Compress the CT to a template
-tar --numeric-owner -zcf ${vz_path}/template/cache/debian-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz ${vz_path}/private/${temp_vm_id}/
+cd ${vz_path}/private/${temp_vm_id}/
+tar --numeric-owner -zcf ${vz_path}/template/cache/debian-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz .
 
 # Cleanup (delete temp container)
 vzctl destroy $temp_vm_id
