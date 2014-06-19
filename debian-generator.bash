@@ -41,7 +41,7 @@ temp_dns="8.8.8.8"
 # Check if "basic config" exists in current installation
 
 if [[ ! -f /etc/pve/openvz/ve-basic.conf-sample ]]; then
-	cat > /etc/pve/openvz/ve-basic.conf-sample <<EOF
+    cat > /etc/pve/openvz/ve-basic.conf-sample <<EOF
 #  Copyright (C) 2000-2006 SWsoft. All rights reserved.
 #
 #  This program is free software; you can redistribute it and/or modify
@@ -175,7 +175,6 @@ rm -f ${vz_path}/private/${temp_vm_id}/etc/hostname
 
 # Delete CT ssh keys
 rm -f ${vz_path}/private/${temp_vm_id}/etc/ssh/ssh_host_*
-
 
 # Delete history
 vzctl exec $temp_vm_id history -c
