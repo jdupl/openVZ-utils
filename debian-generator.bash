@@ -17,7 +17,7 @@
 #
 #
 # Script to generate a Debian openVZ template.
-# v1.0.0
+# v1.1.0
 #
 # Currently supports custom locale, mirrors, timezone and Debian release.
 #
@@ -137,12 +137,12 @@ vzctl exec $temp_vm_id locale-gen
 vzctl stop $temp_vm_id
 sleep 1s
 vzctl start $temp_vm_id
-sleep 1s
+sleep 5s
 
 # Update vm with new sources.list
 vzctl exec $temp_vm_id apt-get update
-vzctl exec $temp_vm_id apt-get upgrade -y
-vzctl exec $temp_vm_id apt-get dist-upgrade -y
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes --force-yes
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes --force-yes
 
 # Install some basic utilities
 vzctl exec $temp_vm_id apt-get install -y less htop
@@ -150,6 +150,13 @@ vzctl exec $temp_vm_id apt-get install -y less htop
 # Clean apt-get
 vzctl exec $temp_vm_id apt-get autoremove -y
 vzctl exec $temp_vm_id apt-get clean -y
+
+# Script to regenerate new keys at first boot of the template
+cat  > ${vz_path}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
+ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N '' 
+ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
+rm -f \$0
+EOF
 
 # Make script executable
 vzctl exec $temp_vm_id chmod a+x /etc/init.d/ssh_gen_host_keys
@@ -169,12 +176,6 @@ rm -f ${vz_path}/private/${temp_vm_id}/etc/hostname
 # Delete CT ssh keys
 rm -f ${vz_path}/private/${temp_vm_id}/etc/ssh/ssh_host_*
 
-# Script to regenerate new keys at first boot of the template
-cat  > ${vz_path}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
-ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N '' 
-ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
-rm -f \$0
-EOF
 
 # Delete history
 vzctl exec $temp_vm_id history -c
