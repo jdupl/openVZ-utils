@@ -5,7 +5,7 @@
 
 # TODO: allow user to change apt config file with args
 
-apt_config_path=" /etc/apt/apt.conf.d/30autoaptcacher"
+apt_config_path="/etc/apt/apt.conf.d/30autoaptcacher"
 
 usage() {
     cat << EOF
@@ -24,8 +24,8 @@ EOF
 }
 
 if [ $# -eq 0 ]; then
-	usage;
-	exit 1;
+	usage
+	exit 1
 fi
 
 while getopts "h help a: d" opt; do
@@ -67,5 +67,5 @@ else
     for ct in $(vzlist -H -o ctid); do
         echo "Deleting CT ${ct}'s proxy at ${apt_config_path}"
         vzctl exec $ct "rm ${apt_config_path}"
-    done;
+    done
 fi
