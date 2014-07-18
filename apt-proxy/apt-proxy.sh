@@ -28,7 +28,7 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-while getopts "h help a: d" opt; do
+while getopts "h -help a: d" opt; do
     case "$opt" in
     h | help)
         help; exit 0;
