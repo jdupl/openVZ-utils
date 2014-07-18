@@ -24,14 +24,14 @@ EOF
 }
 
 if [ $# -eq 0 ]; then
-	usage
-	exit 1
+    usage
+    exit 1
 fi
 
 while getopts "h help a: d" opt; do
     case "$opt" in
-  	h | help)
-  		help; exit 0;
+    h | help)
+        help; exit 0;
         ;;
     a)
         proxy_path=$OPTARG;
