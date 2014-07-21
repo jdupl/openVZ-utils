@@ -49,13 +49,19 @@ while getopts "h -help a: d" opt; do
 done
 
 if [[ -n $proxy_path ]]; then
+    protocol=$(cat ${proxy_path} | awk -F'://' '{print $1}')
+    case "$protocol" in
+    http|https|ftp)
+        echo "Valid protocol for proxy: ${method}"
+        ;;
+    *)
+        $protocol="http"
+        echo "Invalid protocol or no protocol supplied. Assuming protocol is $protocol"
+        ;;
+    esac
+
     proxy_config=$(cat <<EOF
-Acquire {
-    Retries "0";
-    HTTP {
-        Proxy "${proxy_path}";
-    };
-};
+Acquire::${protocol}::proxy "${proxy_path}";
 EOF
     )
 
