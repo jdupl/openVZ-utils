@@ -9,7 +9,7 @@ apt_config_path="/etc/apt/apt.conf.d/30autoaptcacher"
 
 usage() {
     cat << EOF
-usage: $0 -a <http://proxy/path:port>| -d [--help | -h]
+usage: $0 -a <http://proxy:port/path>| -d [--help | -h]
 EOF
 }
 
@@ -49,13 +49,13 @@ while getopts "h -help a: d" opt; do
 done
 
 if [[ -n $proxy_path ]]; then
-    protocol=$(echo ${proxy_path} | awk -F'://' '{print $1}')
+    protocol=$(echo ${proxy_path} | awk -F'://' '{print $0}')
     case "$protocol" in
     http|https|ftp)
         echo "Valid protocol for proxy: ${method}"
         ;;
     *)
-        $protocol="http"
+        protocol="http"
         echo "Invalid protocol or no protocol supplied. Assuming protocol is $protocol"
         ;;
     esac
