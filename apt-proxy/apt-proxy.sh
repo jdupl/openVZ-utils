@@ -49,7 +49,7 @@ while getopts "h -help a: d" opt; do
 done
 
 if [[ -n $proxy_path ]]; then
-    protocol=$(cat ${proxy_path} | awk -F'://' '{print $1}')
+    protocol=$(echo ${proxy_path} | awk -F'://' '{print $1}')
     case "$protocol" in
     http|https|ftp)
         echo "Valid protocol for proxy: ${method}"
