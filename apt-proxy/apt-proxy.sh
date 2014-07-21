@@ -62,7 +62,7 @@ if [[ -n $proxy_path ]]; then
     esac
 
     proxy_config=$(cat <<EOF
-Acquire::${protocol}::proxy "${proxy_path}";
+Acquire::${protocol}::proxy \"${proxy_path}\";
 EOF
     )
 
