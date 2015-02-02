@@ -120,8 +120,8 @@ sleep 5s
 
 # Update vm with new sources.list
 vzctl exec $temp_vm_id apt-get update
-vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes --force-yes
-vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade --yes --force-yes
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
 
 # Install some basic utilities
 vzctl exec $temp_vm_id apt-get install -y less htop
