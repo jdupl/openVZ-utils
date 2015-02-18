@@ -26,7 +26,7 @@
 DEFAULT_DNS="8.8.8.8"
 DEFAULT_IP="192.168.2.170"
 DEFAULT_LANG="en_CA"
-DEFAULT_ENCODING="UTF_8"
+DEFAULT_ENCODING="UTF-8"
 DEFAULT_TMPID="1337"
 DEFAULT_MIRROR="http://ftp.debian.org/debian"
 DEFAULT_VERSION="wheezy"
@@ -38,11 +38,14 @@ usage: $0 --ctid <id> | --template <template> [options]
 
 Required:
   --ctid        Use an existing container and template it.
+                Destroys container after templating.
+                Make sure to backup this container first !
   OR
-  --template    Use an existing template and template it (apply all updates).
+  --template    Use an existing template and retemplate it (apply all updates).
 
 Optional parameters:
   --root        VZ root. Default is '${DEFAULT_VZ_ROOT}'.
+  --name        Template name to save.
   --version     Debian version to upgrade to. Default is '${DEFAULT_VERSION}'.
   --mirror      Mirror to use while updating. Default is '${DEFAULT_MIRROR}'.
   --lang        Language of the locale to generate. Default is '${DEFAULT_LANG}'.
@@ -58,12 +61,12 @@ exit 1
 
 ct_exists() {
     local id=$1
-    [ $(vzlist -1a | tr -d ' ' | grep '^${id}$') ]
+    [ $(vzlist -1a | tr -d ' ' | grep "^${id}$") ]
 }
 
 ct_running() {
     local id=$1
-    [ $(vzlist -1 | tr -d ' ' | grep '^${id}$') ]
+    [ $(vzlist -1 | tr -d ' ' | grep "^${id}$") ]
 }
 
 restore_template() {
@@ -103,8 +106,8 @@ QUOTAUGIDLIMIT="0"
 CPUUNITS="1000"
 EOF
     fi
-    if ct_exists $base_ctid; then
-        echo -e "\e[31mError: Container with id ${$base_ctid} already exists. "\
+    if $(ct_exists $base_ctid); then
+        echo -e "\e[31mError: Container with id ${base_ctid} already exists. "\
         "Cannot start template. Please specify different container id.\e[39m"
         exit 2
     fi
@@ -123,14 +126,11 @@ EOF
     vzctl set $base_ctid --ipadd $temp_ip --save
     vzctl set $base_ctid --nameserver $temp_dns --save
 
-    # Start CT
-    #vzctl start $base_ctid
+    vzctl start $base_ctid
     sleep 1s
 }
 
 
-#base_ctid=""
-#base_template=""
 temp_ip=$DEFAULT_IP
 mirror=$DEFAULT_MIRROR
 debian_version=$DEFAULT_VERSION
@@ -139,6 +139,7 @@ lang=$DEFAULT_LANG
 encoding=$DEFAULT_ENCODING
 vz_root=$DEFAULT_VZ_ROOT
 temp_dns=$DEFAULT_DNS
+name=''
 
 while [[ $# > 0 ]]
 do
@@ -146,6 +147,7 @@ do
   shift
   case $key in
     --ctid)             base_ctid="$1";         shift    ;;
+    --name)             name="$1";              shift    ;;
     --template)         base_template="$1";     shift    ;;
     --mirror)           mirror="$1";            shift    ;;
     --root)             vz_root="$1";           shift    ;;
@@ -175,11 +177,17 @@ elif [[ $base_template ]]; then
     restore_template
 elif [[ $base_ctid ]]; then
     echo "using ctid"
+    if ! $(ct_exists $base_ctid); then
+        echo -e "\e[31mError: Container with id ${base_ctid} does not exists. "\
+        "Please enter an existing container id. \e[39m"
+        exit 2
+    elif ! $(ct_running $base_ctid); then
+        echo "CT was not running. Starting container."
+        vzctl start $base_ctid
+    fi
 else
     help
 fi
-
-exit 1
 
 # Generate new locale.gen file
 cat > ${vz_root}/private/${base_ctid}/etc/locale.gen <<EOF
@@ -254,8 +262,13 @@ vzctl exec $base_ctid history -c
 vzctl stop $base_ctid
 
 # Compress the CT to a template
+echo "compressing template..."
 cd ${vz_root}/private/${base_ctid}/
-tar --numeric-owner -zcf ${vz_root}/template/cache/debian-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz .
-
+if [ -d $name ]; then
+    name='debian'
+fi
+path=${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz
+tar --numeric-owner -zcf $path .
+echo "template saved to ${path}"
 # Cleanup (delete temp container)
 vzctl destroy $base_ctid
