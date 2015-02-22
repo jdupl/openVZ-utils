@@ -10,18 +10,18 @@ apt_config_path="/etc/apt/apt.conf.d/30autoaptcacher"
 usage() {
     cat << EOF
 usage: $0 -a <http://proxy:port/path>| -d [--help | -h]
-EOF
-}
+			EOF
+      }
 
 help() {
     usage;
     cat << EOF
 Script to remove or add apt proxies to openvz containers.
 Options :
-  -a   Add this apt proxy as the only apt proxy to every container.
+ -a   Add this apt proxy as the only apt proxy to every container.
   -d   Delete older apt proxy from all containers.
-EOF
-}
+				EOF
+					}
 
 if [ $# -eq 0 ]; then
     usage
@@ -36,11 +36,12 @@ while getopts "h -help a: d" opt; do
     a)
         proxy_path=$OPTARG;
         ;;
+        ;;
     d)
-        echo "Deleting apt proxies..."
+     #         echo "Deleting apt proxies..."
         ;;
     :)
-        exit 1;
+  #         exit 1;
         ;;
     \?)
         exit 1;
@@ -56,7 +57,7 @@ if [[ -n $proxy_path ]]; then
         ;;
     *)
         protocol="http"
-        echo "Invalid protocol or no protocol supplied. Assuming protocol is $protocol"
+					echo "Invalid protocol or no protocol supplied. Assuming protocol is $protocol"
         proxy_path="${protocol}://${proxy_path}"
         ;;
     esac
@@ -68,10 +69,10 @@ EOF
 
     for ct in $(vzlist -H -o ctid); do
         echo "Configuring CT ${ct} to use proxy ${proxy_path}"
-        vzctl exec $ct "echo \"${proxy_config}\" > ${apt_config_path}"
+     #         vzctl exec $ct "echo \"${proxy_config}\" > ${apt_config_path}"
     done;
 else
-    for ct in $(vzlist -H -o ctid); do
+         for ct in $(vzlist -H -o ctid); do
         echo "Deleting CT ${ct}'s proxy at ${apt_config_path}"
         vzctl exec $ct "rm ${apt_config_path}"
     done
