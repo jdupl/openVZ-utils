@@ -38,8 +38,6 @@ usage: $0 --ctid <id> | --template <template> [options]
 
 Required:
   --ctid        Use an existing container and template it.
-                Destroys container after templating.
-                Make sure to backup this container first !
   OR
   --template    Use an existing template and retemplate it (apply all updates).
 
@@ -68,6 +66,29 @@ ct_running() {
     local id=$1
     [ $(vzlist -1 | tr -d ' ' | grep "^${id}$") ]
 }
+
+give_network() {
+    # Give basic network access to CT
+    vzctl set $temp_vm_id --ipadd $temp_ip --save
+    vzctl set $temp_vm_id --nameserver $temp_dns --save
+
+    vzctl start $temp_vm_id
+    sleep 1s
+}
+
+
+clone_ctid() {
+    echo "Backing up base container ${base_ctid} to clone it."
+    # vzdump won't accept a file as it creates a log
+    backup_dir=$(mktemp -d ${vz_root}/dump/XXXXXXX)
+    vzdump ${base_ctid} -dumpdir ${backup_dir} -compress 0
+    backup_file=$(ls ${backup_dir}/*.tar)
+
+    # restore the backup to clone the original container provided
+    vzrestore ${backup_file} ${temp_vm_id}
+    give_network
+}
+
 
 restore_template() {
     # Check if "basic config" exists in current installation
@@ -106,8 +127,8 @@ QUOTAUGIDLIMIT="0"
 CPUUNITS="1000"
 EOF
     fi
-    if $(ct_exists $base_ctid); then
-        echo -e "\e[31mError: Container with id ${base_ctid} already exists. "\
+    if $(ct_exists $temp_vm_id); then
+        echo -e "\e[31mError: Container with id ${temp_vm_id} already exists. "\
         "Cannot start template. Please specify different container id.\e[39m"
         exit 2
     fi
@@ -120,16 +141,9 @@ EOF
     fi
 
     # Create container with base template
-    vzctl create $base_ctid --ostemplate ${template_path} --config basic
-
-    # Give basic network access to CT
-    vzctl set $base_ctid --ipadd $temp_ip --save
-    vzctl set $base_ctid --nameserver $temp_dns --save
-
-    vzctl start $base_ctid
-    sleep 1s
+    vzctl create $temp_vm_id --ostemplate ${template_path} --config basic
+    give_network
 }
-
 
 temp_ip=$DEFAULT_IP
 mirror=$DEFAULT_MIRROR
@@ -166,6 +180,11 @@ do
   esac
 done
 
+# Use generic name if not provided by user
+if [ -d $name ]; then
+    name="debian-${debian_version}"
+fi
+
 # Check if ctid or template was provided
 #echo $base_template
 if [[ $base_template ]] && [[ $base_ctid ]]; then
@@ -173,7 +192,7 @@ if [[ $base_template ]] && [[ $base_ctid ]]; then
     help
 elif [[ $base_template ]]; then
     echo "using template"
-    base_ctid=$temp_vm_id
+    #base_ctid=$temp_vm_id
     restore_template
 elif [[ $base_ctid ]]; then
     echo "using ctid"
@@ -181,16 +200,14 @@ elif [[ $base_ctid ]]; then
         echo -e "\e[31mError: Container with id ${base_ctid} does not exists. "\
         "Please enter an existing container id. \e[39m"
         exit 2
-    elif ! $(ct_running $base_ctid); then
-        echo "CT was not running. Starting container."
-        vzctl start $base_ctid
     fi
+    clone_ctid
 else
     help
 fi
 
 # Generate new locale.gen file
-cat > ${vz_root}/private/${base_ctid}/etc/locale.gen <<EOF
+cat > ${vz_root}/private/${temp_vm_id}/etc/locale.gen <<EOF
 # This file lists locales that you wish to have built. You can find a list
 # of valid supported locales at /usr/share/i18n/SUPPORTED, and you can add
 # user defined locales to /usr/local/share/i18n/SUPPORTED. If you change
@@ -199,76 +216,75 @@ ${lang}.${encoding} ${encoding}
 EOF
 
 # Set default locale
-cat > ${vz_root}/private/${base_ctid}/etc/default/locale <<EOF
+cat > ${vz_root}/private/${temp_vm_id}/etc/default/locale <<EOF
 LANG="${lang}.${encoding}"
 EOF
 
 # Generate new /etc/apt/sources.list file
-cat > ${vz_root}/private/${base_ctid}/etc/apt/sources.list <<EOF
+cat > ${vz_root}/private/${temp_vm_id}/etc/apt/sources.list <<EOF
 deb ${mirror} ${debian_version} main contrib
 deb ${mirror} ${debian_version}-updates main contrib
 deb http://security.debian.org ${debian_version}/updates main contrib
 EOF
 
 # Generate new locale
-vzctl exec $base_ctid locale-gen
+vzctl exec $temp_vm_id locale-gen
 
-vzctl stop $base_ctid
+vzctl stop $temp_vm_id
 sleep 1s
-vzctl start $base_ctid
+vzctl start $temp_vm_id
 sleep 5s
 
 # Update vm with new sources.list
-vzctl exec $base_ctid apt-get update
-vzctl exec $base_ctid DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
-vzctl exec $base_ctid DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
+vzctl exec $temp_vm_id apt-get update
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
+vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
 
 # Install some basic utilities
-vzctl exec $base_ctid apt-get install -y less htop
+vzctl exec $temp_vm_id apt-get install -y less htop
 
 # Clean apt-get
-vzctl exec $base_ctid apt-get autoremove -y
-vzctl exec $base_ctid apt-get clean -y
+vzctl exec $temp_vm_id apt-get autoremove -y
+vzctl exec $temp_vm_id apt-get clean -y
 
 # Script to regenerate new keys at first boot of the template
-cat  > ${vz_root}/private/${base_ctid}/etc/init.d/ssh_gen_host_keys << EOF
+cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
 ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
 rm -f \$0
 EOF
 
 # Make script executable
-vzctl exec $base_ctid chmod a+x /etc/init.d/ssh_gen_host_keys
+vzctl exec $temp_vm_id chmod a+x /etc/init.d/ssh_gen_host_keys
 
 # Enable init script
-vzctl exec $base_ctid insserv /etc/init.d/ssh_gen_host_keys
+vzctl exec $temp_vm_id insserv /etc/init.d/ssh_gen_host_keys
 
 # Change timezone
-vzctl exec $base_ctid ln -sf /usr/share/zoneinfo/$timezone /etc/timezone
+vzctl exec $temp_vm_id ln -sf /usr/share/zoneinfo/$timezone /etc/timezone
 
 # Delete CT's hostname file
-rm -f ${vz_root}/private/${base_ctid}/etc/hostname
+rm -f ${vz_root}/private/${temp_vm_id}/etc/hostname
 
 # Reset CT's resolv.conf
-> ${vz_root}/private/${base_ctid}/etc/resolv.conf
+> ${vz_root}/private/${temp_vm_id}/etc/resolv.conf
 
 # Delete CT ssh keys
-rm -f ${vz_root}/private/${base_ctid}/etc/ssh/ssh_host_*
+rm -f ${vz_root}/private/${temp_vm_id}/etc/ssh/ssh_host_*
 
 # Delete history
-vzctl exec $base_ctid history -c
+vzctl exec $temp_vm_id history -c
 
 # Stop the CT
-vzctl stop $base_ctid
+vzctl stop $temp_vm_id
 
 # Compress the CT to a template
 echo "compressing template..."
-cd ${vz_root}/private/${base_ctid}/
-if [ -d $name ]; then
-    name='debian'
-fi
+cd ${vz_root}/private/${temp_vm_id}/
+
 path=${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz
 tar --numeric-owner -zcf $path .
 echo "template saved to ${path}"
+
 # Cleanup (delete temp container)
-vzctl destroy $base_ctid
+vzctl destroy $temp_vm_id
