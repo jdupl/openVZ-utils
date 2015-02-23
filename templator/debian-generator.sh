@@ -301,7 +301,7 @@ vzctl exec $temp_vm_id history -c
 vzctl stop $temp_vm_id
 
 # Enable container specific services
-while read service; do chmod +x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/service.txt
+while read service; do chmod +x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
 
 # Compress the CT to a template
 echo "Compressing template..."
