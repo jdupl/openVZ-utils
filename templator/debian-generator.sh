@@ -69,6 +69,7 @@ ct_running() {
 
 give_network() {
     # Give basic network access to CT
+    vzctl set $temp_vm_id --ipdel all --save
     vzctl set $temp_vm_id --ipadd $temp_ip --save
     vzctl set $temp_vm_id --nameserver $temp_dns --save
 
