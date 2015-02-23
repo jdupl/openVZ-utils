@@ -217,7 +217,7 @@ else
 fi
 
 # Disable container specific services
-while read service; do chmod -x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
+while read service; do chmod -x "${vz_root}/private/${temp_vm_id}/${service}"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
 
 # Start temp container
 vzctl start $temp_vm_id
@@ -301,7 +301,7 @@ vzctl exec $temp_vm_id history -c
 vzctl stop $temp_vm_id
 
 # Enable container specific services
-while read service; do chmod +x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
+while read service; do chmod +x "${vz_root}/private/${temp_vm_id}/${service}"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
 
 # Compress the CT to a template
 echo "Compressing template..."
