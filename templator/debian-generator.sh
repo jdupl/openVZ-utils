@@ -14,15 +14,22 @@
 #
 # Author: Justin Duplessis
 #
-# Script to generate a Debian openVZ template.
+# Script to generate a Debian openVZ template from an existing container
+# or a backup.
+#
 # v2.0.0-dev
 #
 # Currently supports custom locale, mirrors, timezone and Debian release.
+# Allows custom scripts to be run to update template.
 #
 # Have a base Debian openVZ template or container and run this script as root in
 # the hypervisor.
 # A full system update will be ran.
 
+
+# Do not edit constants here !
+# A script update will overwrite your values. Please see user-defaults.sh
+# in the same directory
 DEFAULT_DNS="8.8.8.8"
 DEFAULT_IP="192.168.2.170"
 DEFAULT_LANG="en_CA"
@@ -72,11 +79,7 @@ give_network() {
     vzctl set $temp_vm_id --ipdel all --save
     vzctl set $temp_vm_id --ipadd $temp_ip --save
     vzctl set $temp_vm_id --nameserver $temp_dns --save
-
-    vzctl start $temp_vm_id
-    sleep 1s
 }
-
 
 clone_ctid() {
     echo "Backing up base container ${base_ctid} to clone it."
@@ -87,9 +90,9 @@ clone_ctid() {
 
     # restore the backup to clone the original container provided
     vzrestore ${backup_file} ${temp_vm_id}
+    rm -rf "$backup_dir"
     give_network
 }
-
 
 restore_template() {
     # Check if "basic config" exists in current installation
@@ -146,6 +149,14 @@ EOF
     give_network
 }
 
+# Load user defaults values
+DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [[ -x "${DIR}/user-defaults.sh" ]]; then
+    . "${DIR}/user-defaults.sh"
+else
+   echo "Warning: user-defaults file not found"
+fi
+
 temp_ip=$DEFAULT_IP
 mirror=$DEFAULT_MIRROR
 debian_version=$DEFAULT_VERSION
@@ -187,13 +198,11 @@ if [ -d $name ]; then
 fi
 
 # Check if ctid or template was provided
-#echo $base_template
 if [[ $base_template ]] && [[ $base_ctid ]]; then
     echo -e "\e[31mError: Please use --template OR --ctid.\e[39m"
     help
 elif [[ $base_template ]]; then
     echo "using template"
-    #base_ctid=$temp_vm_id
     restore_template
 elif [[ $base_ctid ]]; then
     echo "using ctid"
@@ -206,6 +215,13 @@ elif [[ $base_ctid ]]; then
 else
     help
 fi
+
+# Disable container specific services
+while read service; do chmod -x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/service.txt
+
+# Start temp container
+vzctl start $temp_vm_id
+sleep 2s
 
 # Generate new locale.gen file
 cat > ${vz_root}/private/${temp_vm_id}/etc/locale.gen <<EOF
@@ -248,6 +264,11 @@ vzctl exec $temp_vm_id apt-get install -y less htop
 vzctl exec $temp_vm_id apt-get autoremove -y
 vzctl exec $temp_vm_id apt-get clean -y
 
+# Run custom update scripts
+if [[ -x "${vz_root}/private/${temp_vm_id}/etc/vz-template/update.sh" ]]; then
+    vzctl exec $temp_vm_id /etc/vz-template/update.sh
+fi
+
 # Script to regenerate new keys at first boot of the template
 cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
@@ -279,13 +300,16 @@ vzctl exec $temp_vm_id history -c
 # Stop the CT
 vzctl stop $temp_vm_id
 
+# Enable container specific services
+while read service; do chmod +x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/service.txt
+
 # Compress the CT to a template
-echo "compressing template..."
+echo "Compressing template..."
 cd ${vz_root}/private/${temp_vm_id}/
 
 path=${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz
 tar --numeric-owner -zcf $path .
-echo "template saved to ${path}"
+echo "Template saved to ${path}"
 
 # Cleanup (delete temp container)
 vzctl destroy $temp_vm_id
