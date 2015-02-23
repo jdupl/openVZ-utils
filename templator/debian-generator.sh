@@ -150,7 +150,7 @@ EOF
 }
 
 # Load user defaults values
-DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+DIR="$(dirname $(readlink -f $0))"
 if [[ -x "${DIR}/user-defaults.sh" ]]; then
     . "${DIR}/user-defaults.sh"
 else
@@ -217,7 +217,7 @@ else
 fi
 
 # Disable container specific services
-while read service; do chmod -x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/service.txt
+while read service; do chmod -x "$service"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
 
 # Start temp container
 vzctl start $temp_vm_id
