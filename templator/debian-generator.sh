@@ -269,6 +269,10 @@ if [[ -x "${vz_root}/private/${temp_vm_id}/etc/vz-template/update.sh" ]]; then
     vzctl exec $temp_vm_id /etc/vz-template/update.sh
 fi
 
+if [[ -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher" ]]; then
+    rm -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher"
+fi
+
 # Script to regenerate new keys at first boot of the template
 cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
