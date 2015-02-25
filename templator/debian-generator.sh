@@ -165,7 +165,7 @@ lang=$DEFAULT_LANG
 encoding=$DEFAULT_ENCODING
 vz_root=$DEFAULT_VZ_ROOT
 temp_dns=$DEFAULT_DNS
-name=''
+name='debian'
 
 while [[ $# > 0 ]]
 do
@@ -191,11 +191,6 @@ do
         ;;
   esac
 done
-
-# Use generic name if not provided by user
-if [ -d $name ]; then
-    name="debian-${debian_version}"
-fi
 
 # Check if ctid or template was provided
 if [[ $base_template ]] && [[ $base_ctid ]]; then
@@ -258,7 +253,7 @@ vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::O
 vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
 
 # Install some basic utilities
-vzctl exec $temp_vm_id apt-get install -y less htop
+vzctl exec $temp_vm_id apt-get install -y nano less htop bash-completion
 
 # Clean apt-get
 vzctl exec $temp_vm_id apt-get autoremove -y
@@ -275,31 +270,38 @@ fi
 
 # Script to regenerate new keys at first boot of the template
 cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
-ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
-ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
-rm -f \$0
+rm -f /etc/ssh/ssh_host_*
+/usr/bin/ssh-keygen -t rsa -N '' -f /etc/ssh/ssh_host_rsa_key
+/usr/bin/ssh-keygen -t dsa -N '' -f /etc/ssh/ssh_host_dsa_key
+/usr/bin/ssh-keygen -t rsa1 -N '' -f /etc/ssh/ssh_host_key
+/usr/sbin/service ssh restart
+update-rc.d -f /etc/init.d/ssh_gen_host_keys remove
+rm -f /etc/init.d/ssh_gen_host_keys
 EOF
 
 # Make script executable
-vzctl exec $temp_vm_id chmod a+x /etc/init.d/ssh_gen_host_keys
+vzctl exec $temp_vm_id chmod +x /etc/init.d/ssh_gen_host_keys
 
 # Enable init script
-vzctl exec $temp_vm_id insserv /etc/init.d/ssh_gen_host_keys
+echo "Enable init script"
+vzctl exec $temp_vm_id "update-rc.d ssh_gen_host_keys defaults"
+
+# Delete CT ssh keys
+echo $(vzctl exec ${temp_vm_id} "rm -f /etc/ssh/ssh_host_*")
 
 # Change timezone
-vzctl exec $temp_vm_id ln -sf /usr/share/zoneinfo/$timezone /etc/timezone
+vzctl exec $temp_vm_id "ln -sf /usr/share/zoneinfo/$timezone /etc/timezone"
 
 # Delete CT's hostname file
-rm -f ${vz_root}/private/${temp_vm_id}/etc/hostname
+rm -f "${vz_root}/private/${temp_vm_id}/etc/hostname"
 
 # Reset CT's resolv.conf
 > ${vz_root}/private/${temp_vm_id}/etc/resolv.conf
 
-# Delete CT ssh keys
-rm -f ${vz_root}/private/${temp_vm_id}/etc/ssh/ssh_host_*
-
 # Delete history
 vzctl exec $temp_vm_id history -c
+
+sleep 2
 
 # Stop the CT
 vzctl stop $temp_vm_id
