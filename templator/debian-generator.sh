@@ -259,15 +259,32 @@ vzctl exec $temp_vm_id apt-get install -y nano less htop bash-completion
 vzctl exec $temp_vm_id apt-get autoremove -y
 vzctl exec $temp_vm_id apt-get clean -y
 
-# Run custom update scripts
-if [[ -x "${vz_root}/private/${temp_vm_id}/etc/vz-template/update.sh" ]]; then
-    vzctl exec $temp_vm_id /etc/vz-template/update.sh
-fi
+# Generate script to run all scripts inside container
+tmp_script=$(vzctl exec "$temp_vm_id" "mktemp -p /tmp XXXXXXXX")
+full_tmp_script="${vz_root}/private/${temp_vm_id}${tmp_script}"
+cat > "$full_tmp_script" << 'EOF'
+#!/bin/bash
+for script in $(find /etc/vz-template/scripts/ -type f); do
+    if [[ -x "$script" ]]; then
+        echo "Executing template script ${script} inside container..."
+        $script
+    else
+        echo "Warning: Skipping ${script} as it is not executable !"
+    fi
+done
+EOF
+chmod +x "$full_tmp_script"
 
+# Run template scripts inside container
+vzctl exec "$temp_vm_id" "$tmp_script"
+rm "$full_tmp_script"
+
+# Remove custom apt-cacher config
 if [[ -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher" ]]; then
     rm -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher"
 fi
 
+# TODO simply inject to /etc/vz-template
 # Script to regenerate new keys at first boot of the template
 cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
 rm -f /etc/ssh/ssh_host_*
@@ -275,7 +292,7 @@ rm -f /etc/ssh/ssh_host_*
 /usr/bin/ssh-keygen -t dsa -N '' -f /etc/ssh/ssh_host_dsa_key
 /usr/bin/ssh-keygen -t rsa1 -N '' -f /etc/ssh/ssh_host_key
 /usr/sbin/service ssh restart
-update-rc.d -f /etc/init.d/ssh_gen_host_keys remove
+update-rc.d -f ssh_gen_host_keys remove
 rm -f /etc/init.d/ssh_gen_host_keys
 EOF
 
