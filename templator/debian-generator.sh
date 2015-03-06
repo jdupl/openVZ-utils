@@ -38,6 +38,7 @@ DEFAULT_TMPID="1337"
 DEFAULT_MIRROR="http://ftp.debian.org/debian"
 DEFAULT_VERSION="wheezy"
 DEFAULT_VZ_ROOT="/var/lib/vz/"
+DEFAULT_TIMEZONE="America/Montreal"
 
 help() {
 cat <<EOF
@@ -76,20 +77,20 @@ ct_running() {
 
 give_network() {
     # Give basic network access to CT
-    vzctl set $temp_vm_id --ipdel all --save
-    vzctl set $temp_vm_id --ipadd $temp_ip --save
-    vzctl set $temp_vm_id --nameserver $temp_dns --save
+    vzctl set "$temp_vm_id" --ipdel all --save
+    vzctl set "$temp_vm_id" --ipadd "$temp_ip" --save
+    vzctl set "$temp_vm_id" --nameserver "$temp_dns" --save
 }
 
 clone_ctid() {
     echo "Backing up base container ${base_ctid} to clone it."
     # vzdump won't accept a file as it creates a log
-    backup_dir=$(mktemp -d ${vz_root}/dump/XXXXXXX)
-    vzdump ${base_ctid} -dumpdir ${backup_dir} -compress 0
-    backup_file=$(ls ${backup_dir}/*.tar)
+    backup_dir=$(mktemp -d "${vz_root}/dump/XXXXXXX")
+    vzdump "$base_ctid" -dumpdir "$backup_dir" -compress 0
+    backup_file=$(ls "${backup_dir}"/*.tar)
 
     # restore the backup to clone the original container provided
-    vzrestore ${backup_file} ${temp_vm_id}
+    vzrestore "$backup_file" "$temp_vm_id"
     rm -rf "$backup_dir"
     give_network
 }
@@ -131,26 +132,26 @@ QUOTAUGIDLIMIT="0"
 CPUUNITS="1000"
 EOF
     fi
-    if $(ct_exists $temp_vm_id); then
+    if ct_exists "$temp_vm_id"; then
         echo -e "\e[31mError: Container with id ${temp_vm_id} already exists. "\
         "Cannot start template. Please specify different container id.\e[39m"
         exit 2
     fi
 
-    local template_path=${vz_root}/template/cache/${base_template}
-    if [[ ! -f $template_path ]]; then
+    local template_path="${vz_root}/template/cache/${base_template}"
+    if [[ ! -f "$template_path" ]]; then
         echo -e "\e[31mError: Template ${base_template} not found. "\
         "Make sure the template exists in ${vz_root}/template/cache/.\e[39m"
         exit 2
     fi
 
     # Create container with base template
-    vzctl create $temp_vm_id --ostemplate ${template_path} --config basic
+    vzctl create "$temp_vm_id" --ostemplate "${template_path}" --config basic
     give_network
 }
 
 # Load user defaults values
-DIR="$(dirname $(readlink -f $0))"
+DIR="$(dirname "$(readlink -f "$0")")"
 if [[ -x "${DIR}/user-defaults.sh" ]]; then
     . "${DIR}/user-defaults.sh"
 else
@@ -165,61 +166,64 @@ lang=$DEFAULT_LANG
 encoding=$DEFAULT_ENCODING
 vz_root=$DEFAULT_VZ_ROOT
 temp_dns=$DEFAULT_DNS
+timezone=$DEFAULT_TIMEZONE
 name='debian'
 
-while [[ $# > 0 ]]
+while [[ $# -gt 0 ]]
 do
-  key="$1"
-  shift
-  case $key in
-    --ctid)             base_ctid="$1";         shift    ;;
-    --name)             name="$1";              shift    ;;
-    --template)         base_template="$1";     shift    ;;
-    --mirror)           mirror="$1";            shift    ;;
-    --root)             vz_root="$1";           shift    ;;
-    --version)          debian_version="$1";    shift    ;;
-    --ip)               temp_ip="$1";           shift    ;;
-    --dns)              temp_dns="$1";          shift    ;;
-    --tmpid)            temp_vm_id="$1";        shift    ;;
-    --lang)             lang="$1";              shift    ;;
-    --encoding)         encoding="$1";          shift    ;;
-    *)
-        echo -e "\e[31mError: unknown parameter: $key\e[39m"
-        echo
-        help
-        return 1
-        ;;
-  esac
+    key="$1"
+    shift
+    case "$key" in
+      --ctid)             base_ctid="$1";         shift    ;;
+      --name)             name="$1";              shift    ;;
+      --template)         base_template="$1";     shift    ;;
+      --mirror)           mirror="$1";            shift    ;;
+      --root)             vz_root="$1";           shift    ;;
+      --version)          debian_version="$1";    shift    ;;
+      --ip)               temp_ip="$1";           shift    ;;
+      --dns)              temp_dns="$1";          shift    ;;
+      --tmpid)            temp_vm_id="$1";        shift    ;;
+      --lang)             lang="$1";              shift    ;;
+      --encoding)         encoding="$1";          shift    ;;
+      *)
+          echo -e "\e[31mError: unknown parameter: $key\e[39m"
+          echo
+          help
+          return 1
+          ;;
+    esac
 done
 
 # Check if ctid or template was provided
-if [[ $base_template ]] && [[ $base_ctid ]]; then
+if [[ "$base_template" ]] && [[ "$base_ctid" ]]; then
     echo -e "\e[31mError: Please use --template OR --ctid.\e[39m"
     help
-elif [[ $base_template ]]; then
+elif [[ "$base_template" ]]; then
     echo "using template"
     restore_template
-elif [[ $base_ctid ]]; then
+elif [[ "$base_ctid" ]]; then
     echo "using ctid"
-    if ! $(ct_exists $base_ctid); then
+
+    if ! ct_exists "$base_ctid"; then
         echo -e "\e[31mError: Container with id ${base_ctid} does not exists. "\
         "Please enter an existing container id. \e[39m"
         exit 2
     fi
+
     clone_ctid
 else
     help
 fi
 
 # Disable container specific services
-while read service; do chmod -x "${vz_root}/private/${temp_vm_id}/${service}"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
+while read service; do chmod -x "${vz_root}/private/${temp_vm_id}/${service}"; done < "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt"
 
 # Start temp container
-vzctl start $temp_vm_id
+vzctl start "$temp_vm_id"
 sleep 2s
 
 # Generate new locale.gen file
-cat > ${vz_root}/private/${temp_vm_id}/etc/locale.gen <<EOF
+cat > "${vz_root}/private/${temp_vm_id}/etc/locale.gen" <<EOF
 # This file lists locales that you wish to have built. You can find a list
 # of valid supported locales at /usr/share/i18n/SUPPORTED, and you can add
 # user defined locales to /usr/local/share/i18n/SUPPORTED. If you change
@@ -228,36 +232,36 @@ ${lang}.${encoding} ${encoding}
 EOF
 
 # Set default locale
-cat > ${vz_root}/private/${temp_vm_id}/etc/default/locale <<EOF
+cat > "${vz_root}/private/${temp_vm_id}/etc/default/locale" <<EOF
 LANG="${lang}.${encoding}"
 EOF
 
 # Generate new /etc/apt/sources.list file
-cat > ${vz_root}/private/${temp_vm_id}/etc/apt/sources.list <<EOF
+cat > "${vz_root}/private/${temp_vm_id}/etc/apt/sources.list" <<EOF
 deb ${mirror} ${debian_version} main contrib
 deb ${mirror} ${debian_version}-updates main contrib
 deb http://security.debian.org ${debian_version}/updates main contrib
 EOF
 
 # Generate new locale
-vzctl exec $temp_vm_id locale-gen
+vzctl exec "$temp_vm_id" locale-gen
 
-vzctl stop $temp_vm_id
+vzctl stop "$temp_vm_id"
 sleep 1s
-vzctl start $temp_vm_id
+vzctl start "$temp_vm_id"
 sleep 5s
 
 # Update vm with new sources.list
-vzctl exec $temp_vm_id apt-get update
-vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
-vzctl exec $temp_vm_id DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
+vzctl exec "$temp_vm_id" apt-get update
+vzctl exec "$temp_vm_id" DEBIAN_FRONTEND=noninteractive apt-get upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
+vzctl exec "$temp_vm_id" DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -o Dpkg::Options::=--force-confnew --yes --force-yes
 
 # Install some basic utilities
-vzctl exec $temp_vm_id apt-get install -y nano less htop bash-completion
+vzctl exec "$temp_vm_id" apt-get install -y nano less htop bash-completion
 
 # Clean apt-get
-vzctl exec $temp_vm_id apt-get autoremove -y
-vzctl exec $temp_vm_id apt-get clean -y
+vzctl exec "$temp_vm_id" apt-get autoremove -y
+vzctl exec "$temp_vm_id" apt-get clean -y
 
 # Generate script to run all scripts inside container
 tmp_script=$(vzctl exec "$temp_vm_id" "mktemp -p /tmp XXXXXXXX")
@@ -284,55 +288,53 @@ if [[ -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher" ]
     rm -f "${vz_root}/private/${temp_vm_id}/etc/apt/apt.conf.d/30autoaptcacher"
 fi
 
-# TODO simply inject to /etc/vz-template
 # Script to regenerate new keys at first boot of the template
-cat  > ${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys << EOF
+cat  > "${vz_root}/private/${temp_vm_id}/etc/init.d/ssh_gen_host_keys" << EOF
 rm -f /etc/ssh/ssh_host_*
 /usr/bin/ssh-keygen -t rsa -N '' -f /etc/ssh/ssh_host_rsa_key
-/usr/bin/ssh-keygen -t dsa -N '' -f /etc/ssh/ssh_host_dsa_key
-/usr/bin/ssh-keygen -t rsa1 -N '' -f /etc/ssh/ssh_host_key
 /usr/sbin/service ssh restart
 update-rc.d -f ssh_gen_host_keys remove
 rm -f /etc/init.d/ssh_gen_host_keys
 EOF
 
-# Make script executable
-vzctl exec $temp_vm_id chmod +x /etc/init.d/ssh_gen_host_keys
+# Make ssh key script executable
+vzctl exec "$temp_vm_id" chmod +x /etc/init.d/ssh_gen_host_keys
 
-# Enable init script
+# Enable ssh key init script
 echo "Enable init script"
-vzctl exec $temp_vm_id "update-rc.d ssh_gen_host_keys defaults"
+vzctl exec "$temp_vm_id" "update-rc.d ssh_gen_host_keys defaults"
 
 # Delete CT ssh keys
-echo $(vzctl exec ${temp_vm_id} "rm -f /etc/ssh/ssh_host_*")
+vzctl exec "${temp_vm_id}" "rm -f /etc/ssh/ssh_host_*"
 
 # Change timezone
-vzctl exec $temp_vm_id "ln -sf /usr/share/zoneinfo/$timezone /etc/timezone"
+vzctl exec "$temp_vm_id" "ln -sf /usr/share/zoneinfo/$timezone /etc/timezone"
 
 # Delete CT's hostname file
 rm -f "${vz_root}/private/${temp_vm_id}/etc/hostname"
 
 # Reset CT's resolv.conf
-> ${vz_root}/private/${temp_vm_id}/etc/resolv.conf
+> "${vz_root}/private/${temp_vm_id}/etc/resolv.conf"
 
 # Delete history
-vzctl exec $temp_vm_id history -c
+vzctl exec "$temp_vm_id" history -c
 
 sleep 2
 
 # Stop the CT
-vzctl stop $temp_vm_id
+vzctl stop "$temp_vm_id"
 
 # Enable container specific services
-while read service; do chmod +x "${vz_root}/private/${temp_vm_id}/${service}"; done < ${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt
+while read service; do chmod +x "${vz_root}/private/${temp_vm_id}/${service}"; done < "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt"
 
 # Compress the CT to a template
 echo "Compressing template..."
-cd ${vz_root}/private/${temp_vm_id}/
+cd "${vz_root}/private/${temp_vm_id}/"
 
-path=${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz
-tar --numeric-owner -zcf $path .
-echo "Template saved to ${path}"
+path="${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz"
+
+tar --numeric-owner -zcf "$path" .
+echo "Template saved to ${path}. Size of template: $(du -h "$path" | cut -f 1)."
 
 # Cleanup (delete temp container)
-vzctl destroy $temp_vm_id
+vzctl destroy "$temp_vm_id"
