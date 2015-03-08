@@ -327,7 +327,7 @@ sleep 2
 vzctl stop "$temp_vm_id"
 
 # Remove all logs
-for logs in find "${vz_root}/private/${temp_vm_id}/var/log" -type f; do > "$logs"; done
+for logs in $(find "${vz_root}/private/${temp_vm_id}/var/log/" -type f); do > "$logs"; done
 
 # Re-enable container specific services
 if [[ -f "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt" ]]; then
