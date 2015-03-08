@@ -17,14 +17,14 @@
 # Script to generate a Debian openVZ template from an existing container
 # or a backup.
 #
-# v2.0.0-dev
+# v2.0.0-alpha
 #
 # Currently supports custom locale, mirrors, timezone and Debian release.
 # Allows custom scripts to be run to update template.
 #
 # Have a base Debian openVZ template or container and run this script as root in
 # the hypervisor.
-# A full system update will be ran.
+# A full system update will be ran and custom scripts can be injected.
 
 
 # Do not edit constants here !
@@ -132,6 +132,7 @@ QUOTAUGIDLIMIT="0"
 CPUUNITS="1000"
 EOF
     fi
+
     if ct_exists "$temp_vm_id"; then
         echo -e "\e[31mError: Container with id ${temp_vm_id} already exists. "\
         "Cannot start template. Please specify different container id.\e[39m"
@@ -139,6 +140,7 @@ EOF
     fi
 
     local template_path="${vz_root}/template/cache/${base_template}"
+
     if [[ ! -f "$template_path" ]]; then
         echo -e "\e[31mError: Template ${base_template} not found. "\
         "Make sure the template exists in ${vz_root}/template/cache/.\e[39m"
@@ -324,8 +326,17 @@ sleep 2
 # Stop the CT
 vzctl stop "$temp_vm_id"
 
-# Enable container specific services
-while read service; do chmod +x "${vz_root}/private/${temp_vm_id}/${service}"; done < "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt"
+# Remove all logs
+for logs in find "${vz_root}/private/${temp_vm_id}/var/log" -type f; do > "$logs"; done
+
+# Re-enable container specific services
+if [[ -f "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt" ]]; then
+    while read service;
+    do
+        chmod +x "${vz_root}/private/${temp_vm_id}/${service}";
+    done < "${vz_root}/private/${temp_vm_id}/etc/vz-template/services.txt"
+fi
+
 
 # Compress the CT to a template
 echo "Compressing template..."
