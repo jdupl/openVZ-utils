@@ -188,7 +188,7 @@ do
       --lang)             lang="$1";              shift    ;;
       --encoding)         encoding="$1";          shift    ;;
       *)
-          echo -e "\e[31mError: unknown parameter: $key\e[39m"
+          echo -e "\e[31mError: unknown parameter: $key\e[0m"
           echo
           help
           return 1
@@ -198,7 +198,7 @@ done
 
 # Check if ctid or template was provided
 if [[ "$base_template" ]] && [[ "$base_ctid" ]]; then
-    echo -e "\e[31mError: Please use --template OR --ctid.\e[39m"
+    echo -e "\e[31mError: Please use --template OR --ctid.\e[0m"
     help
 elif [[ "$base_template" ]]; then
     echo "using template"
@@ -208,7 +208,7 @@ elif [[ "$base_ctid" ]]; then
 
     if ! ct_exists "$base_ctid"; then
         echo -e "\e[31mError: Container with id ${base_ctid} does not exists. "\
-        "Please enter an existing container id. \e[39m"
+        "Please enter an existing container id. \e[0m"
         exit 2
     fi
 
@@ -268,14 +268,15 @@ vzctl exec "$temp_vm_id" apt-get clean -y
 # Generate script to run all scripts inside container
 tmp_script=$(vzctl exec "$temp_vm_id" "mktemp -p /tmp XXXXXXXX")
 full_tmp_script="${vz_root}/private/${temp_vm_id}${tmp_script}"
+
 cat > "$full_tmp_script" << 'EOF'
 #!/bin/bash
 for script in $(find /etc/vz-template/scripts/ -type f); do
     if [[ -x "$script" ]]; then
-        echo "Executing template script ${script} inside container..."
+        echo "\e[0;32mExecuting template script ${script} inside container...\e[0m"
         $script
     else
-        echo "Warning: Skipping ${script} as it is not executable !"
+        echo -e "\e[0;33m[Warning]: Skipping ${script} as it is not executable !\e[0m"
     fi
 done
 EOF
