@@ -273,7 +273,7 @@ cat > "$full_tmp_script" << 'EOF'
 #!/bin/bash
 for script in $(find /etc/vz-template/scripts/ -type f); do
     if [[ -x "$script" ]]; then
-        echo "\e[0;32mExecuting template script ${script} inside container...\e[0m"
+        echo -e "\e[0;32mExecuting template script ${script} inside container...\e[0m"
         $script
     else
         echo -e "\e[0;33m[Warning]: Skipping ${script} as it is not executable !\e[0m"
