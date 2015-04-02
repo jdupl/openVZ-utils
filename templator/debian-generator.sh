@@ -345,7 +345,7 @@ cd "${vz_root}/private/${temp_vm_id}/"
 
 path="${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz"
 
-tar --numeric-owner -zcf "$path" .
+tar --numeric-owner -cf - . | pigz -p 6 > "$path"
 echo "Template saved to ${path}. Size of template: $(du -h "$path" | cut -f 1)."
 
 # Cleanup (delete temp container)
