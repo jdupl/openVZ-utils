@@ -224,6 +224,9 @@ while read service; do chmod -x "${vz_root}/private/${temp_vm_id}/${service}"; d
 vzctl start "$temp_vm_id"
 sleep 2s
 
+# Get architecture of the CT
+arch=$(vzctl exec "$temp_vm_id" "uname -m")
+
 # Generate new locale.gen file
 cat > "${vz_root}/private/${temp_vm_id}/etc/locale.gen" <<EOF
 # This file lists locales that you wish to have built. You can find a list
@@ -343,7 +346,7 @@ fi
 echo "Compressing template..."
 cd "${vz_root}/private/${temp_vm_id}/"
 
-path="${vz_root}/template/cache/$name-${debian_version}-i386-${lang}.${encoding}-$(date +%F).tar.gz"
+path="${vz_root}/template/cache/$name-${debian_version}-${arch}-${lang}.${encoding}-$(date +%F).tar.gz"
 
 tar --numeric-owner -cf - . | pigz -p 6 > "$path"
 echo "Template saved to ${path}. Size of template: $(du -h "$path" | cut -f 1)."
