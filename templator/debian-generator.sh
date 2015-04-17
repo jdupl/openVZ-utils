@@ -346,10 +346,22 @@ fi
 echo "Compressing template..."
 cd "${vz_root}/private/${temp_vm_id}/"
 
-path="${vz_root}/template/cache/$name-${debian_version}-${arch}-${lang}.${encoding}-$(date +%F).tar.gz"
+template_filename="$name-${debian_version}-${arch}-${lang}.${encoding}-$(date +%F).tar.gz"
+path="${vz_root}/template/cache"
+full_template_path="${path}/${template_filename}"
 
 tar --numeric-owner -cf - . | pigz -p 6 > "$path"
-echo "Template saved to ${path}. Size of template: $(du -h "$path" | cut -f 1)."
+echo "Template saved to '${full_template_path}'. Size of template: $(du -h "$full_template_path" | cut -f 1)."
 
 # Cleanup (delete temp container)
 vzctl destroy "$temp_vm_id"
+
+echo "Cleaning old templates"
+if [[ ! -d "${template_path}/old/" ]]; then
+    mkdir "${template_path}/old/"
+fi
+
+ls "$template_path" | grep -i "^$name" | grep -v "$template_filename" | while read old_template; do
+    mv "${template_path}/${old_template}" "${template_path}/old/"
+    echo "Moved ${template_path}/${old_template} to ${template_path}/old/"
+done
