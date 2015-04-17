@@ -347,10 +347,10 @@ echo "Compressing template..."
 cd "${vz_root}/private/${temp_vm_id}/"
 
 template_filename="$name-${debian_version}-${arch}-${lang}.${encoding}-$(date +%F).tar.gz"
-path="${vz_root}/template/cache"
-full_template_path="${path}/${template_filename}"
+template_path="${vz_root}/template/cache"
+full_template_path="${template_path}/${template_filename}"
 
-tar --numeric-owner -cf - . | pigz -p 6 > "$path"
+tar --numeric-owner -cf - . | pigz -p 6 > "$full_template_path"
 echo "Template saved to '${full_template_path}'. Size of template: $(du -h "$full_template_path" | cut -f 1)."
 
 # Cleanup (delete temp container)
